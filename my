@@ -1,7 +1,7 @@
 #include <SoftwareSerial.h>
-#define SSID "Doron_MK"
-#define PASS "genie2014"
-#define DST_IP "213.186.33.19" //baidu.com
+#define SSID "myWiFi"
+#define PASS "xxxxxxx"
+#define DST_IP "213.186.33.19" //api.pushingbox.com
 SoftwareSerial dbgSerial(10, 11); // RX, TX
 void setup()
 {
@@ -53,7 +53,7 @@ void loop()
  Serial.println(cmd);
  dbgSerial.println(cmd);
  if(Serial.find("Error")) return;
- cmd = "GET /pushingbox?devid=v762BAA2C1F33221&col1=A&col2=B&col3=C HTTP/1.1\r\n\r\n";
+ cmd = "GET /pushingbox?devid=v762BAA23221&col1=A&col2=B&col3=C HTTP/1.1\r\n\r\n";
  Serial.print("AT+CIPSEND=");
  Serial.println(cmd.length());
  if(Serial.find(">"))
