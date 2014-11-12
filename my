@@ -1,106 +1,233 @@
+//Leonardo
+//Serial_ & dbgTerminal = Serial;
+//HardwareSerial & espSerial = Serial1;
+ 
+////UNO & M328P
 #include <SoftwareSerial.h>
-#define SSID "myWiFi"
-#define PASS "xxxxxxx"
-#define DST_IP "213.186.33.19" //api.pushingbox.com
-SoftwareSerial dbgSerial(10, 11); // RX, TX
-void setup()
-{
- // Open serial communications and wait for port to open:
- Serial.begin(9600);
- Serial.setTimeout(5000);
- dbgSerial.begin(9600); //can't be faster than 19200 for softserial
- dbgSerial.println("ESP8266 Demo");
- //test if the module is ready
- Serial.println("AT+RST");
- delay(1000);
- if(Serial.find("ready"))
- {
- dbgSerial.println("Module is ready");
- }
- else
- {
- dbgSerial.println("Module have no response.");
- //while(1);
- }
- delay(1000);
- //connect to the wifi
- boolean connected=false;
- for(int i=0;i<5;i++)
- {
- if(connectWiFi())
- {
- connected = true;
- break;
- }
- }
- if (!connected){while(1);}
- delay(5000);
- //print the ip addr
- Serial.println("AT+CIFSR");
- dbgSerial.println("ip address:");
- while (Serial.available())
- dbgSerial.write(Serial.read());
- //set the single connection mode
- Serial.println("AT+CIPMUX=0");
+SoftwareSerial dbgTerminal(10, 11); // RX, TX
+HardwareSerial & espSerial = Serial;
+ 
+//
+////MEGA2560 
+//HardwareSerial & dbgTerminal = Serial;
+//HardwareSerial & espSerial = Serial1;
+ 
+// set pin numbers:
+const int ledPin =  13;      // the number of the LED pin
+const int myledPin =  9;      // the number of the LED pin PWM
+const int ESP8266_CHPD = 4;
+const String NetworkSSID = "Arduino_WiFi";
+const String NetworkPASS = "123456789";
+// Variables will change:
+int ledState = HIGH;             // ledState used to set the LED
+
+#define BUFFER_SIZE 128
+char buffer[BUFFER_SIZE];
+
+void setup() { 
+  
+  String cmd = "AT+CWSAP=\"";
+  cmd += NetworkSSID;
+  cmd += "\",\"";
+  cmd += NetworkPASS;
+  cmd += "\",11,4 :";
+  
+  pinMode(ledPin, OUTPUT);  
+  //pinMode(ESP8266_CHPD, OUTPUT);
+
+  dbgTerminal.begin(9600); // Serial monitor
+  espSerial.begin(9600); // ESP8266
+
+  //while (!dbgTerminal) {
+  // ; // wait for serial port to connect. Needed for Leonardo only
+  //}
+
+  dbgTerminal.println(F("ESP8266 demo."));
+  clearSerialBuffer();
+  //test if the module is ready
+  dbgTerminal.print("AT : ");
+  dbgTerminal.println( GetResponse("AT",1000) );
+
+  //Change to mode 1
+  dbgTerminal.print("AT+CWMODE=3 : ");
+  dbgTerminal.println( GetResponse("AT+CWMODE=3",1000) );
+
+  //set the multiple connection mode
+  dbgTerminal.print(F("AT+CIPMUX=1 : "));
+  dbgTerminal.println( GetResponse("AT+CIPMUX=1",1000) );
+
+  //set the server of port 80 check "no change" or "OK"
+  dbgTerminal.print(F("AT+CIPSERVER=1,80 : "));
+  dbgTerminal.println( GetResponse("AT+CIPSERVER=1,80", 1000) );
+  
+  //set the multiple connection mode
+  dbgTerminal.println(cmd);
+  dbgTerminal.println(GetResponse(cmd,8000));
+  
+  dbgTerminal.println();
+  dbgTerminal.println(F("Ready!"));
+  dbgTerminal.println("connect to 192.168.4.1");
+  digitalWrite(ledPin,ledState);  
 }
 
+void loop() {
+  int ch_id, packet_len;
+  char *pb;  
+  espSerial.readBytesUntil('\n', buffer, BUFFER_SIZE);
 
-void loop()
-{
- String cmd = "AT+CIPSTART=\"UDP\",\"";
- cmd += DST_IP;
- cmd += "\",80";
- Serial.println(cmd);
- dbgSerial.println(cmd);
- if(Serial.find("Error")) return;
- cmd = "GET /pushingbox?devid=v762BAA23221&col1=A&col2=B&col3=C HTTP/1.1\r\n\r\n";
- Serial.print("AT+CIPSEND=");
- Serial.println(cmd.length());
- if(Serial.find(">"))
- {
- dbgSerial.print(">");
- }else
- {
- Serial.println("AT+CIPCLOSE");
- dbgSerial.println("connect timeout");
- delay(1000);
- return;
- }
- Serial.print(cmd);
- delay(2000);
- //Serial.find("+IPD");
- while (Serial.available())
- {
- char c = Serial.read();
- dbgSerial.write(c);
- if(c=='\r') dbgSerial.print('\n');
- }
- dbgSerial.println("====");
- delay(1000);
+  if(strncmp(buffer, "+IPD,", 5)==0) {
+    // request: +IPD,ch,len:data
+    sscanf(buffer+5, "%d,%d", &ch_id, &packet_len);
+    if (packet_len > 0) {
+      // read serial until packet_len character received
+      // start from :
+      pb = buffer+5;
+      while(*pb!=':') pb++;
+      pb++;
+      
+      
+      if (strncmp(pb, "GET /led?+=", 11) == 0) {
+        pb+=11;
+        dbgTerminal.print(millis());
+        dbgTerminal.print(" : ");
+        dbgTerminal.println(buffer);
+        dbgTerminal.print( "get led from ch :" );
+        dbgTerminal.print(ch_id);
+        dbgTerminal.print(" value= ");
+        dbgTerminal.print(pb);
+        int ledVal =0;
+        int mult=1;
+        while(*pb!=' '){
+          ledVal*=10;
+          ledVal+=int(*pb-'0');
+          pb++;
+        }
+        delay(100);
+        clearSerialBuffer();
+        
+        analogWrite(myledPin, ledVal);
+        
+        if (ledState == LOW)
+          ledState = HIGH;
+        else
+          ledState = LOW;
+        digitalWrite(ledPin, ledState);
+        
+        homepage(ch_id);
+
+      } 
+      else if (strncmp(pb, "GET / ", 6) == 0) {
+        dbgTerminal.print(millis());
+        dbgTerminal.print(" : ");
+        dbgTerminal.println(buffer);
+        dbgTerminal.print( "get Status from ch:" );
+        dbgTerminal.println(ch_id);
+
+        delay(100);
+        clearSerialBuffer();
+
+        homepage(ch_id);
+      }
+    }
+  }
+  clearBuffer();
 }
 
+void homepage(int ch_id) {
+  String Header;
+
+  Header =  "HTTP/1.1 200 OK\r\n";
+  Header += "Content-Type: text/html\r\n";
+  Header += "Connection: close\r\n";  
+  //Header += "Refresh: 5\r\n";
+
+  String Content;
+    Content = "<CENTER><H1>Welcome to Genie page!</H1></CENTER><BR>";
+  Content+= "<form action=\"/led\" method=\"get\"> <input type=\"text\" name=\" \"><input type=\"submit\" value=\"Send\"> </form>";
+  /*
+  Content = "Hello World!";
+  Content += String(ledState);
+  */
+  Header += "Content-Length: ";
+  Header += (int)(Content.length());
+  Header += "\r\n\r\n";
 
 
+  espSerial.print("AT+CIPSEND=");
+  espSerial.print(ch_id);
+  espSerial.print(",");
+  espSerial.println(Header.length()+Content.length());
+  delay(10);
+
+  // for debug buffer serial error
+  //while (espSerial.available() >0 )  {
+  //  char c = espSerial.read();
+  //  dbgTerminal.write(c);
+  //  if (c == '>') {
+  //      espSerial.print(Header);
+  //      espSerial.print(Content);
+  //  }
+  //}
+
+  if (espSerial.find(">")) {
+    espSerial.print(Header);
+    espSerial.print(Content);
+    delay(10);
+  }
+
+  //  Serial1.print("AT+CIPCLOSE=");
+  //  Serial1.println(ch_id);
 
 
-boolean connectWiFi()
-{
- Serial.println("AT+CWMODE=1");
- String cmd="AT+CWJAP=\"";
- cmd+=SSID;
- cmd+="\",\"";
- cmd+=PASS;
- cmd+="\"";
- dbgSerial.println(cmd);
- Serial.println(cmd);
- delay(2000);
- if(Serial.find("OK"))
- {
- dbgSerial.println("OK, Connected to WiFi.");
- return true;
- }else
- {
- dbgSerial.println("Can not connect to the WiFi.");
- return false;
- }
+}
+
+// Get the data from the WiFi module and send it to the debug serial port
+String GetResponse(String AT_Command, int wait){
+  String tmpData;
+  
+  espSerial.println(AT_Command);
+  delay(wait);
+  while (espSerial.available() >0 )  {
+    char c = espSerial.read();
+    tmpData += c;
+    
+    if ( tmpData.indexOf(AT_Command) > -1 )         
+      tmpData = "";
+    else
+      tmpData.trim();       
+          
+   }
+   return tmpData;
+}
+
+boolean hardReset() {
+  String tmpData;
+
+  digitalWrite(ESP8266_CHPD,LOW);
+  delay(100);
+  digitalWrite(ESP8266_CHPD,HIGH);
+  delay(1000);
+
+  while ( espSerial.available() > 0 ) {
+    char c = espSerial.read();
+    tmpData +=c;
+    espSerial.write(c);
+    if ( tmpData.indexOf("Ready") > -1 ) {
+      //Serial.println("Ready");
+      clearBuffer();
+      return 1;
+    } 
+  }
+}
+
+void clearSerialBuffer(void) {
+  while ( espSerial.available() > 0 ) {
+    espSerial.read();
+  }
+}
+
+void clearBuffer(void) {
+  for (int i =0;i<BUFFER_SIZE;i++ ) {
+    buffer[i]=0;
+  }
 }
