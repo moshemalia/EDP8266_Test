@@ -14,9 +14,9 @@ HardwareSerial & espSerial = Serial;
  
 // set pin numbers:
 const int ledPin =  13;      // the number of the LED pin
-const int myledPin =  9;      // the number of the LED pin PWM
+const int myledPin =  9;      // the number of the LED pin
 const int ESP8266_CHPD = 4;
-const String NetworkSSID = "Arduino_WiFi";
+const String NetworkSSID = "Mmalia";
 const String NetworkPASS = "123456789";
 // Variables will change:
 int ledState = HIGH;             // ledState used to set the LED
@@ -66,7 +66,8 @@ void setup() {
   
   dbgTerminal.println();
   dbgTerminal.println(F("Ready!"));
-  dbgTerminal.println("connect to 192.168.4.1");
+  dbgTerminal.println("connect to: ");
+  dbgTerminal.println(GetResponse("AT+CIFSR",1));
   digitalWrite(ledPin,ledState);  
 }
 
@@ -85,8 +86,8 @@ void loop() {
       while(*pb!=':') pb++;
       pb++;
       
-      
-      if (strncmp(pb, "GET /led?+=", 11) == 0) {
+      int ledVal =0;
+      if(sscanf(pb,"GET /led?ledValue=%d",&ledVal) == 1) {
         pb+=11;
         dbgTerminal.print(millis());
         dbgTerminal.print(" : ");
@@ -95,13 +96,7 @@ void loop() {
         dbgTerminal.print(ch_id);
         dbgTerminal.print(" value= ");
         dbgTerminal.print(pb);
-        int ledVal =0;
-        int mult=1;
-        while(*pb!=' '){
-          ledVal*=10;
-          ledVal+=int(*pb-'0');
-          pb++;
-        }
+        
         delay(100);
         clearSerialBuffer();
         
@@ -143,7 +138,7 @@ void homepage(int ch_id) {
 
   String Content;
     Content = "<CENTER><H1>Welcome to Genie page!</H1></CENTER><BR>";
-  Content+= "<form action=\"/led\" method=\"get\"> <input type=\"text\" name=\" \"><input type=\"submit\" value=\"Send\"> </form>";
+  Content+= "<form action=\"/led\" method=\"get\"> <input type=\"text\" name=\"ledValue\"><input type=\"submit\" value=\"Send\"> </form>";
   /*
   Content = "Hello World!";
   Content += String(ledState);
