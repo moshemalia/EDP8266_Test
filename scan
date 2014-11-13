@@ -1,0 +1,74 @@
+#include <SoftwareSerial.h>
+HardwareSerial & espSerial = Serial;
+
+SoftwareSerial mySerial(10,11);
+#define BUFFER_SIZE 128
+char buffer[BUFFER_SIZE];
+
+
+void setup() 
+{
+  mySerial.begin(9600);
+  mySerial.println("Test");
+  espSerial.begin(9600);
+  mySerial.println(GetResponse("AT",1000));
+  espSerial.println("AT+CWLAP");
+  delay(100);
+  while (!espSerial.available());
+  
+  char  *okTest="00";
+  while (okTest[0]!='O' &&  okTest[1]!='K')  {
+    if(espSerial.available()>0)
+      {
+      char c = espSerial.read();
+      if(c=='+')
+      {
+        mySerial.println("");
+      }
+      if(c=='O' && okTest[0]!=c)
+      {
+        okTest[0]=c;
+      }
+      if(c=='K')
+      {
+        if(okTest[0]=='O')
+        {
+          okTest[1]=c;
+          mySerial.println("");
+        }
+        else
+        {
+          okTest[0]='0';
+        }
+      }
+      mySerial.print(c);
+      mySerial.flush();
+      delay(100);
+    }
+  }
+  mySerial.print("okTest: ");mySerial.println(okTest);
+  mySerial.println("END");
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+}
+
+String GetResponse(String AT_Command, int wait){
+  String tmpData;
+  
+  espSerial.println(AT_Command);
+  delay(wait);
+  while (espSerial.available() >0 )  {
+    char c = espSerial.read();
+    tmpData += c;
+    
+    if ( tmpData.indexOf(AT_Command) > -1 )         
+      tmpData = "";
+    else
+      tmpData.trim();       
+          
+   }
+   return tmpData;
+}
